@@ -1,9 +1,22 @@
 # selinux
 
 ## Смена порта в NGINX
-Изменив порт в */etc/nginx/nginx.conf* selinux не даст нам запустить на нестандартном порту nginx.
+Изменим порт в */etc/nginx/nginx.conf*
+
+	# sed -i 's/80/3200/g' /etc/nginx/nginx.conf
+
+Selinux не даст нам запустить на нестандартном порту nginx.
+
+	[root@selinux nginx]# systemctl start nginx.service 
+	Job for nginx.service failed because the control process exited with error code. See "systemctl status nginx.service" and "journalctl -xe" for details.
+
 
 Утилита *sealert* предлагает нам три рекомендации
+
+	[root@selinux nginx]# sealert -a /var/log/audit/audit.log 
+	100% done
+	found 1 alerts in /var/log/audit/audit.log
+	--------------------------------------------------------------------------------
 
 	SELinux запрещает /usr/sbin/nginx доступ name_bind к tcp_socket port 3200.
 
@@ -59,7 +72,7 @@
 
 Запустим наш nginx
 
-	[root@selinux etc]# systemctl status nginx
+	[root@selinux etc]# systemctl start nginx
 
 
 ### setbool
@@ -71,23 +84,48 @@
 	varnishd_connect_any --> off
 
 
-Разрешим параметризованную политику NIS (Network Information Service)командой
+Разрешим эту параметризованную политику NIS (Network Information Service)командой
 
-	setsebool -P nis_enabled 1
+	[root@selinux vagrant]# setsebool -P nis_enabled 1
 
+Запустим наш nginx
+
+	[root@selinux vagrant]# systemctl start nginx
 
 ### audit
 
 Утилита *sealert* также нам предлагает создать модуль локальной политики для разрешенных действий.
 
+Посмотрим с помощью утилиты *audit2why* логи в человеческом формате
+
+	[root@selinux vagrant]# audit2why < /var/log/audit/audit.log
+	type=AVC msg=audit(1602164546.373:1011): avc:  denied  { name_bind } for  pid=4019 comm="nginx" src=3200 scontext=system_u:system_r:httpd_t:s0 tcontext=system_u:object_r:unreserved_port_t:s0 tclass=tcp_socket permissive=0
+
 Создадим необходимый нам модуль
 
-	ausearch -c 'nginx' --raw | audit2allow -M my-nginx
+	[root@selinux vagrant]# ausearch -c 'nginx' --raw | audit2allow -M my-nginx
+
+Посмотрим файл *my-nginx.te*
+
+	[root@selinux vagrant]# cat my-nginx.te
+	module my-nginx 1.0;
+	require {
+		type httpd_t;
+		type unreserved_port_t;
+		class tcp_socket name_bind;
+	}
+	#============= httpd_t ==============
+	#!!!! This avc can be allowed using the boolean 'nis_enabled'
+	allow httpd_t unreserved_port_t:tcp_socket name_bind;
 
 Применим этот модуль
 	
 	semodule -i my-nginx.pp
 
+Запустим наш nginx
+
+	[root@selinux vagrant]# systemctl start nginx
+
 ### Примечание
 
-Наиболее оптимальным способом в данной ситуации лучше подходит первый вариатн с *semanage*. Второй вариант довольно радикальный и дает разрешение всем сервисам работающим через политику NIS. Третий вариант тоже довольно грубый, так как создавая модуль мы точно не знаем (можно перед применением посмотреть созданный модуль), что именно утилита *audit2allow* разрешит нашему ПО в данном модуле. 
+Наиболее оптимальным способом в данной ситуации лучше подходит первый вариатн с *semanage*, который и реализован в *scripts/selinux.sh*, так как он наиболее точечный. Второй вариант довольно радикальный и дает разрешение всем сервисам работающим через политику NIS. Третий вариант тоже довольно грубый, так как создавая модуль мы точно не знаем (хотя можно перед применением посмотреть созданный модуль), что именно утилита *audit2allow* разрешит нашему ПО в данном модуле делать на нашей машине.
