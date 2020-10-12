@@ -207,3 +207,107 @@ Selinux не даст нам запустить на нестандартном 
 	> send
 	> 
 
+Рассмотрим проблему глубже, взглянем на *man named*, в частности обратим внимание на вот эту часть:
+
+	       The Red Hat BIND distribution and SELinux policy creates three directories
+	       where named is allowed to create and modify files: /var/named/slaves,
+	       /var/named/dynamic /var/named/data. By placing files you want named to
+	       modify, such as slave or DDNS updateable zone files and database /
+	       statistics dump files in these directories, named will work normally and no
+	       further operator action is required. Files in these directories are
+	       automatically assigned the 'named_cache_t' file context, which SELinux
+	       allows named to write.
+
+Теперь взглянем на */etc/name.conf*
+
+	// ZONE TRANSFER WITH TSIG
+	include "/etc/named.zonetransfer.key"; 
+
+	view "view1" {
+	    match-clients { "view1"; };
+
+	    // root zone
+	    zone "." IN {
+	    	type hint;
+	    	file "named.ca";
+	    };
+
+	    // zones like localhost
+	    include "/etc/named.rfc1912.zones";
+	    // root DNSKEY
+	    include "/etc/named.root.key";
+
+	    // labs dns zone
+	    zone "dns.lab" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        file "/etc/named/named.dns.lab.view1";
+	    };
+
+	    // labs ddns zone
+	    zone "ddns.lab" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        allow-update { key "zonetransfer.key"; };
+	        file "/etc/named/dynamic/named.ddns.lab.view1";
+	    };
+
+	    // labs newdns zone
+	    zone "newdns.lab" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        file "/etc/named/named.newdns.lab";
+	    };
+
+	    // labs zone reverse
+	    zone "50.168.192.in-addr.arpa" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        file "/etc/named/named.50.168.192.rev";
+	    };
+	};
+
+	view "default" {
+	    match-clients { any; };
+
+	    // root zone
+	    zone "." IN {
+	    	type hint;
+	    	file "named.ca";
+	    };
+
+	    // zones like localhost
+	    include "/etc/named.rfc1912.zones";
+	    // root DNSKEY
+	    include "/etc/named.root.key";
+
+	    // labs dns zone
+	    zone "dns.lab" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        file "/etc/named/named.dns.lab";
+	    };
+
+	    // labs ddns zone
+	    zone "ddns.lab" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        allow-update { key "zonetransfer.key"; };
+	        file "/etc/named/dynamic/named.ddns.lab";
+	    };
+
+	    // labs newdns zone
+	    zone "newdns.lab" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        file "/etc/named/named.newdns.lab";
+	    };
+
+	    // labs zone reverse
+	    zone "50.168.192.in-addr.arpa" {
+	        type master;
+	        allow-transfer { key "zonetransfer.key"; };
+	        file "/etc/named/named.50.168.192.rev";
+	    };
+	};
+
