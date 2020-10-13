@@ -176,7 +176,7 @@ Selinux не даст нам запустить на нестандартном 
 
 	-rwxr-xr-x. root root system_u:object_r:named_exec_t:s0 /usr/sbin/named
 
-Самый легкий и на мой взгляд самый грубый это воспользоваться *audit2allow*
+Самый легкий и на мой взгляд самый грубый способ это воспользоваться *audit2allow*
 
 	# ausearch -c 'isc-worker0000' --raw | audit2allow -M my-iscworker0000
 	# semodule -i my-iscworker0000.pp
